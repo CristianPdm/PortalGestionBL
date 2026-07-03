@@ -1,0 +1,24 @@
+# Entorno virtual Python — se recrea con setup_venv.bat en cada PC
+venv/
+
+# Base de datos — contiene datos operativos reales, no se versiona
+*.db
+*.db-wal
+*.db-shm
+
+# Exportaciones Excel generadas por el portal
+Stock_BL_ARCA_*.xlsx
+
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Variables de entorno locales (si en algún momento se usa un .env)
+.env

@@ -1,0 +1,4 @@
+flask>=3.0
+xlsxwriter>=3.2
+apscheduler>=3.10
+waitress>=3.0

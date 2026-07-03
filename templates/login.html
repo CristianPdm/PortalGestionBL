@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestión Stock Fiscal | GS — Iniciar sesión</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body {
+      background: #F5F6F7;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.10);
+      padding: 40px 36px 32px;
+      width: 100%;
+      max-width: 380px;
+    }
+    .brand-bar {
+      background: #1C2B3F;
+      border-radius: 6px 6px 0 0;
+      padding: 18px 24px;
+      margin: -40px -36px 28px;
+      color: #fff;
+    }
+    .brand-bar h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: .3px; }
+    .brand-bar p  { font-size: 12px; color: #a0b4c8; margin: 3px 0 0; }
+    .btn-primary  { background: #0070F2; border-color: #0070F2; }
+    .btn-primary:hover { background: #0040B0; border-color: #0040B0; }
+    .form-label   { font-size: 13px; font-weight: 500; color: #556; }
+    .form-control { font-size: 14px; }
+    #err-msg { font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="brand-bar">
+      <h1><i class="fa fa-warehouse me-2"></i>Gestión Stock Fiscal | GS</h1>
+      <p>Depósitos Fiscales ARCA</p>
+    </div>
+
+    <form id="loginForm">
+      <div class="mb-3">
+        <label class="form-label" for="username">Usuario</label>
+        <input id="username" type="text" class="form-control" placeholder="usuario"
+               autocomplete="username" autofocus required>
+      </div>
+      <div class="mb-4">
+        <label class="form-label" for="password">Contraseña</label>
+        <div class="input-group">
+          <input id="password" type="password" class="form-control" placeholder="••••••••"
+                 autocomplete="current-password" required>
+          <button type="button" class="btn btn-outline-secondary" tabindex="-1"
+                  onclick="togglePwd('password', this)" title="Mostrar/ocultar contraseña">
+            <i class="fa fa-eye"></i>
+          </button>
+        </div>
+      </div>
+      <div id="err-msg" class="alert alert-danger d-none py-2"></div>
+      <button type="submit" class="btn btn-primary w-100" id="btnLogin">
+        <i class="fa fa-sign-in-alt me-1"></i> Ingresar
+      </button>
+    </form>
+  </div>
+
+  <script>
+    function togglePwd(inputId, btn) {
+      const inp  = document.getElementById(inputId);
+      const icon = btn.querySelector('i');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+      } else {
+        inp.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn    = document.getElementById('btnLogin');
+      const errDiv = document.getElementById('err-msg');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Ingresando...';
+      errDiv.classList.add('d-none');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value
+          })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          window.location.href = '/';
+        } else {
+          errDiv.textContent = data.error || 'Error al iniciar sesión';
+          errDiv.classList.remove('d-none');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa fa-sign-in-alt me-1"></i> Ingresar';
+        }
+      } catch {
+        errDiv.textContent = 'Error de conexión con el servidor';
+        errDiv.classList.remove('d-none');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa fa-sign-in-alt me-1"></i> Ingresar';
+      }
+    });
+  </script>
+</body>
+</html>

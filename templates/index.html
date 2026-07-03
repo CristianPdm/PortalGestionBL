@@ -1,0 +1,2028 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestión Stock Fiscal | GS</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- jsPDF + autoTable para reporte PDF (igual que v5) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --shell: #1C2B3F; --blue: #0070F2; --blue-dk: #0040B0;
+      --bg: #F5F6F7;    --border: #D9DBDD;
+    }
+    body { background: var(--bg); font-size: 14px; }
+
+    /* ── Shell bar ── */
+    .shell-bar {
+      background: var(--shell); color: #fff;
+      display: flex; align-items: center;
+      padding: 0 20px; height: 48px; position: sticky; top: 0; z-index: 1040;
+    }
+    .shell-brand { font-weight: 600; font-size: 15px; white-space: nowrap; }
+    .shell-brand i { color: #5ba3f5; margin-right: 8px; }
+    .shell-nav { display: flex; gap: 4px; margin-left: 28px; flex: 1; }
+    .shell-nav a {
+      color: #a0b4c8; font-size: 13px; text-decoration: none;
+      padding: 6px 12px; border-radius: 4px; cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .shell-nav a:hover    { background: rgba(255,255,255,.1); color: #fff; }
+    .shell-nav a.active   { background: rgba(255,255,255,.15); color: #fff; font-weight: 500; }
+    .shell-nav a.admin-link { display: none; }
+    .role-admin .shell-nav a.admin-link { display: inline-block; }
+    .shell-user { font-size: 12px; color: #a0b4c8; white-space: nowrap; }
+    .shell-user span { color: #fff; font-weight: 500; }
+    .shell-user .btn-logout {
+      background: none; border: 1px solid #3a5070; color: #a0b4c8;
+      font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 10px;
+    }
+    .shell-user .btn-logout:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+    /* ── Page layout ── */
+    .page-wrap { padding: 24px; max-width: 1280px; margin: 0 auto; }
+    .page-header { margin-bottom: 20px; }
+    .page-header h2 { font-size: 20px; font-weight: 600; color: #1C2B3F; margin: 0; }
+    .page-header p  { font-size: 13px; color: #666; margin: 4px 0 0; }
+
+    /* ── Cards ── */
+    .stat-card {
+      background: #fff; border-radius: 8px; border: 1px solid var(--border);
+      padding: 16px 20px; text-align: center;
+    }
+    .stat-card .num   { font-size: 32px; font-weight: 700; color: #1C2B3F; line-height: 1.1; }
+    .stat-card .label { font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: .5px; margin-top: 4px; }
+    .stat-card .sub   { font-size: 12px; color: #555; margin-top: 2px; }
+
+    /* ── Estado chips ── */
+    .chip {
+      display: inline-block; border-radius: 12px; font-size: 11px;
+      font-weight: 600; padding: 2px 9px; white-space: nowrap;
+    }
+    .chip-PRECARGA    { background: #e0e0e0; color: #333; }
+    .chip-INGRESADO   { background: #e6f4ea; color: #1a7340; }
+    .chip-PARCIAL     { background: #fff3e0; color: #b45309; }
+    .chip-NACIONALIZADO { background: #e8f0fe; color: #1a56db; }
+    .chip-EGRESADO    { background: #f3e8ff; color: #6c2eb9; }
+    .chip-sinubic     { background: #fce8e6; color: #c5221f; }
+    .chip-locked      { background: #fff3e0; color: #b45309; font-size: 10px; }
+
+    /* ── Tabla stock ── */
+    .tbl-stock { background: #fff; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
+    .tbl-stock table { margin: 0; font-size: 13px; }
+    .tbl-stock thead th { background: #1C2B3F; color: #fff; font-weight: 500;
+                          font-size: 12px; border: none; padding: 10px 12px; }
+    .tbl-stock tbody tr:hover { background: #f0f4ff; }
+    .tbl-stock td { padding: 8px 12px; vertical-align: middle; border-color: #eee; }
+    .tbl-stock .mono { font-family: monospace; font-size: 12px; }
+
+    /* ── Filtros ── */
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+                  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+                  padding: 10px 14px; margin-bottom: 14px; }
+    .filter-bar input, .filter-bar select { font-size: 13px; }
+
+    /* ── Botones de acción en tabla ── */
+    .btn-act { font-size: 12px; padding: 3px 9px; white-space: nowrap; }
+
+    /* ── Modal ── */
+    .modal-header { background: #1C2B3F; color: #fff; border-radius: 6px 6px 0 0; }
+    .modal-header .btn-close { filter: invert(1); }
+    .modal-footer { background: #f8f9fa; }
+    .form-label { font-size: 12px; font-weight: 600; color: #444; margin-bottom: 3px; }
+    .form-control, .form-select { font-size: 13px; }
+    .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                     color: #0070F2; letter-spacing: .6px; margin: 16px 0 8px;
+                     padding-bottom: 4px; border-bottom: 1px solid #e0e8ff; }
+    .readonly-field { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px;
+                      padding: 5px 10px; font-size: 13px; color: #555; min-height: 32px; }
+
+    /* ── Tabla inline en modal (mercs/conts) ── */
+    .tbl-inline { font-size: 12px; }
+    .tbl-inline thead th { background: #f0f4ff; color: #1C2B3F; font-size: 11px;
+                           font-weight: 600; padding: 6px 8px; border: 1px solid #dde; }
+    .tbl-inline td { padding: 4px 6px; border: 1px solid #eee; }
+    .tbl-inline input, .tbl-inline select { font-size: 12px; padding: 2px 6px; }
+
+    /* ── Actividad reciente ── */
+    .act-item { display: flex; gap: 10px; align-items: flex-start;
+                padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+    .act-item:last-child { border: none; }
+    .act-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+
+    /* ── Modo solo lectura en modal ── */
+    .modal-readonly .form-control,
+    .modal-readonly .form-select,
+    .modal-readonly textarea  { background: #f8f9fa !important; pointer-events: none; }
+    .modal-readonly .btn-row-action { display: none !important; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .shell-nav a { padding: 6px 8px; font-size: 12px; }
+      .page-wrap   { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SHELL BAR ═══════════════════════════════ -->
+<nav class="shell-bar" id="shellBar">
+  <div class="shell-brand"><i class="fa fa-warehouse"></i>Gestión Stock Fiscal | GS</div>
+  <nav class="shell-nav" id="mainNav">
+    <a onclick="showPage('dashboard')" data-page="dashboard">
+      <i class="fa fa-chart-bar me-1"></i>Dashboard</a>
+    <a onclick="showPage('stock')" data-page="stock">
+      <i class="fa fa-boxes me-1"></i>Stock BL</a>
+    <a onclick="showPage('cv')" data-page="cv">
+      <i class="fa fa-box-open me-1"></i>Cont. Vacíos</a>
+    <a onclick="showPage('export')" data-page="export">
+      <i class="fa fa-file-excel me-1"></i>Exportaciones</a>
+    <a onclick="exportarPDF()" id="btnNavPDF" title="Reporte PDF del depósito">
+      <i class="fa fa-file-pdf me-1" style="color:#f87171"></i>Reporte PDF</a>
+    <a onclick="showPage('usuarios')" data-page="usuarios" class="admin-link">
+      <i class="fa fa-users me-1"></i>Usuarios</a>
+    <a onclick="showPage('config')" data-page="config" class="admin-link">
+      <i class="fa fa-cog me-1"></i>Configuración</a>
+  </nav>
+  <div class="shell-user ms-3">
+    Hola, <span id="userNombre"></span>
+    <span class="badge ms-2" id="userRolBadge"></span>
+    <button class="btn-logout" onclick="logout()"><i class="fa fa-sign-out-alt me-1"></i>Salir</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════ PÁGINAS ═════════════════════════════════ -->
+<div class="page-wrap">
+
+  <!-- ── DASHBOARD ───────────────────────────────────────────── -->
+  <div id="page-dashboard" class="page d-none">
+    <div class="page-header">
+      <h2><i class="fa fa-chart-bar me-2 text-primary"></i>Dashboard</h2>
+      <p id="dashFecha"></p>
+    </div>
+    <!-- Tarjetas de estado -->
+    <div class="row g-3 mb-4" id="statsCards">
+      <div class="col-6 col-md-2"><div class="stat-card">
+        <div class="num" id="st-total">—</div>
+        <div class="label">Total BLs</div>
+      </div></div>
+      <div class="col-6 col-md-2"><div class="stat-card">
+        <div class="num text-secondary" id="st-PRECARGA">—</div>
+        <div class="label">Precarga</div>
+      </div></div>
+      <div class="col-6 col-md-2"><div class="stat-card">
+        <div class="num text-success" id="st-INGRESADO">—</div>
+        <div class="label">Ingresado</div>
+      </div></div>
+      <div class="col-6 col-md-2"><div class="stat-card">
+        <div class="num text-warning" id="st-PARCIAL">—</div>
+        <div class="label">Parcial</div>
+      </div></div>
+      <div class="col-6 col-md-2"><div class="stat-card">
+        <div class="num text-info" id="st-NACIONALIZADO">—</div>
+        <div class="label">Nac.</div>
+      </div></div>
+      <div class="col-6 col-md-2"><div class="stat-card">
+        <div class="num text-purple" id="st-EGRESADO">—</div>
+        <div class="label">Egresado</div>
+      </div></div>
+    </div>
+
+    <div class="row g-3">
+      <!-- Actividad reciente -->
+      <div class="col-md-7">
+        <div class="stat-card text-start p-0" style="padding: 0!important;">
+          <div class="px-3 pt-3 pb-2 border-bottom" style="font-size:13px;font-weight:600;color:#1C2B3F;">
+            <i class="fa fa-history me-1 text-primary"></i> Actividad reciente
+          </div>
+          <div class="p-3" id="actList">
+            <div class="text-muted text-center py-3" style="font-size:13px;">Cargando...</div>
+          </div>
+        </div>
+      </div>
+      <!-- Info envío -->
+      <div class="col-md-5">
+        <div class="stat-card text-start">
+          <div style="font-size:13px;font-weight:600;color:#1C2B3F;" class="mb-3">
+            <i class="fa fa-clock me-1 text-primary"></i> Envío a SAP
+          </div>
+          <div id="envioInfo" style="font-size:13px;color:#555;">Cargando...</div>
+          <hr>
+          <div id="ultimoExport" style="font-size:12px;color:#777;">—</div>
+        </div>
+        <div class="mt-3">
+          <button class="btn btn-primary btn-sm w-100" onclick="showPage('stock')">
+            <i class="fa fa-boxes me-1"></i> Ver todos los BLs
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STOCK BL ──────────────────────────────────────────────── -->
+  <div id="page-stock" class="page d-none">
+    <div class="page-header d-flex justify-content-between align-items-start">
+      <div>
+        <h2><i class="fa fa-boxes me-2 text-primary"></i>Stock de BLs</h2>
+        <p id="stockSubtitle">—</p>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadBLs()">
+          <i class="fa fa-sync me-1"></i>Actualizar</button>
+        <button class="btn btn-sm btn-primary" id="btnNuevoBL" onclick="openBLForm(null)" style="display:none">
+          <i class="fa fa-plus me-1"></i>Nuevo BL</button>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filter-bar">
+      <input type="text" id="filtroTexto" class="form-control form-control-sm"
+             placeholder="Buscar NroBL, TLAT, ID Comex..." style="max-width:220px"
+             oninput="filtrarBLs()">
+      <select id="filtroEstado" class="form-select form-select-sm" style="max-width:150px"
+              onchange="filtrarBLs()">
+        <option value="">Todos los estados</option>
+        <option>PRECARGA</option><option>INGRESADO</option>
+        <option>PARCIAL</option><option>NACIONALIZADO</option><option>EGRESADO</option>
+      </select>
+      <select id="filtroUbic" class="form-select form-select-sm" style="max-width:150px"
+              onchange="filtrarBLs()">
+        <option value="">Todas las ubicaciones</option>
+        <option value="sin">Sin ubicación</option>
+        <option value="con">Con ubicación</option>
+      </select>
+      <span class="text-muted ms-auto" style="font-size:12px;" id="filtroCount"></span>
+    </div>
+
+    <!-- Tabla -->
+    <div class="tbl-stock">
+      <table class="table table-hover mb-0" id="tablaBL">
+        <thead>
+          <tr>
+            <th>NroBL</th><th>TLAT</th><th>Estado</th>
+            <th>Ubicación</th>
+            <th>Actualizado</th><th>Por</th><th style="width:130px">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="blBody">
+          <tr><td colspan="7" class="text-center py-4 text-muted">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── CONTENEDORES VACÍOS ──────────────────────────────────── -->
+  <div id="page-cv" class="page d-none">
+    <div class="page-header d-flex justify-content-between align-items-start">
+      <div>
+        <h2><i class="fa fa-box-open me-2 text-primary"></i>Contenedores Vacíos</h2>
+        <p>Registro de contenedores vacíos en el depósito</p>
+      </div>
+      <button class="btn btn-sm btn-primary" id="btnNuevoCV" onclick="openCVForm()" style="display:none">
+        <i class="fa fa-plus me-1"></i>Agregar</button>
+    </div>
+    <div class="tbl-stock">
+      <table class="table table-hover mb-0">
+        <thead><tr>
+          <th>Número</th><th>Longitud</th><th>Fecha</th><th>Hora</th>
+          <th class="admin-dep-only" style="width:80px">Acc.</th>
+        </tr></thead>
+        <tbody id="cvBody">
+          <tr><td colspan="5" class="text-center py-4 text-muted">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── EXPORTACIONES ─────────────────────────────────────────── -->
+  <div id="page-export" class="page d-none">
+    <div class="page-header d-flex justify-content-between align-items-start">
+      <div>
+        <h2><i class="fa fa-file-excel me-2 text-success"></i>Exportaciones a SAP/ARCA</h2>
+        <p>Genera el Excel con los 5 BLs activos y lo copia a la carpeta SAP</p>
+      </div>
+      <button class="btn btn-success" id="btnExport" onclick="exportarARCA()"
+              style="display:none">
+        <i class="fa fa-upload me-1"></i>Enviar a SAP ahora
+      </button>
+    </div>
+    <div id="exportLogWrap" class="tbl-stock">
+      <table class="table mb-0" style="font-size:13px;">
+        <thead><tr>
+          <th>Fecha/Hora</th><th>Archivo</th><th>BLs</th>
+          <th>Usuario</th><th>Estado</th><th>Mensaje</th>
+        </tr></thead>
+        <tbody id="exportBody">
+          <tr><td colspan="6" class="text-center py-4 text-muted">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── USUARIOS (admin) ─────────────────────────────────────── -->
+  <div id="page-usuarios" class="page d-none">
+    <div class="page-header d-flex justify-content-between align-items-start">
+      <div>
+        <h2><i class="fa fa-users me-2 text-primary"></i>Gestión de Usuarios</h2>
+        <p>Alta, baja y modificación de usuarios del portal</p>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="openUserForm(null)">
+        <i class="fa fa-plus me-1"></i>Nuevo usuario</button>
+    </div>
+    <div class="tbl-stock">
+      <table class="table mb-0" style="font-size:13px;">
+        <thead><tr>
+          <th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th>
+          <th>Creado</th><th style="width:100px">Acciones</th>
+        </tr></thead>
+        <tbody id="usersBody">
+          <tr><td colspan="6" class="text-center py-3 text-muted">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- Leyenda de roles -->
+    <div class="mt-3 p-3 bg-white rounded border" style="font-size:12px;color:#555;">
+      <strong>Roles:</strong>
+      <span class="badge bg-danger ms-2">admin</span> todo acceso + gestión de usuarios
+      <span class="badge bg-primary ms-3">comex</span> carga BL, mercaderías, contenedores
+      <span class="badge bg-success ms-3">deposito</span> completa estado, condición y ubicación al recibir mercadería
+      <span class="badge bg-secondary ms-3">lectura</span> solo consulta
+    </div>
+  </div>
+
+  <!-- ── CONFIGURACIÓN (admin) ───────────────────────────────── -->
+  <div id="page-config" class="page d-none">
+    <div class="page-header">
+      <h2><i class="fa fa-cog me-2 text-primary"></i>Configuración</h2>
+      <p>Parámetros del portal y del envío automático a SAP</p>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-7">
+        <div class="bg-white rounded border p-4">
+          <div class="section-title">Envío automático a SAP</div>
+          <div class="mb-3">
+            <label class="form-label">Carpeta SAP (ruta completa)</label>
+            <input type="text" id="cfgCarpeta" class="form-control"
+                   placeholder="Ej: Z:\ToArca  o  \\192.168.1.16\Interfaz Aduana\ToArca">
+            <div class="form-text">
+              Ruta donde se copiará el Excel. Puede ser una letra de unidad mapeada o ruta UNC.
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Etiqueta (descripción de la carpeta)</label>
+            <input type="text" id="cfgLabel" class="form-control"
+                   placeholder="Ej: \\servidor\Interfaz Aduana\ToArca">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Hora de envío automático</label>
+            <input type="time" id="cfgHora" class="form-control" style="max-width:130px">
+          </div>
+          <div class="mb-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="cfgEnvioAuto">
+              <label class="form-check-label" for="cfgEnvioAuto">
+                Habilitar envío automático diario
+              </label>
+            </div>
+          </div>
+          <div class="section-title">Datos de la empresa</div>
+          <div class="mb-3">
+            <label class="form-label">Nombre de empresa</label>
+            <input type="text" id="cfgEmpresa" class="form-control">
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary" onclick="saveConfig()">
+              <i class="fa fa-save me-1"></i>Guardar configuración
+            </button>
+            <button class="btn btn-outline-secondary" onclick="testCarpeta()">
+              <i class="fa fa-plug me-1"></i>Probar conexión carpeta
+            </button>
+          </div>
+          <div id="cfgMsg" class="mt-2" style="font-size:13px;"></div>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="bg-white rounded border p-4">
+          <div class="section-title">Migrar datos existentes</div>
+          <p style="font-size:13px;color:#555;">
+            Si tenés datos en el archivo <code>DB_Comex.csv</code> de la versión anterior,
+            podés importarlos al portal. Esta operación es segura: no borra datos existentes.
+          </p>
+          <button class="btn btn-outline-primary btn-sm" onclick="importarCSV()">
+            <i class="fa fa-file-import me-1"></i>Importar DB_Comex.csv
+          </button>
+          <div id="importMsg" class="mt-2" style="font-size:13px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-wrap -->
+
+<!-- ══════════════════════════ MODAL BL ══════════════════════════════════ -->
+<div class="modal fade" id="modalBL" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title" id="modalBLTitle">BL</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <!-- Tabs (solo para comex/admin) -->
+        <ul class="nav nav-tabs px-3 pt-2" id="blTabs" style="background:#f8f9fa;">
+          <li class="nav-item">
+            <a class="nav-link active" id="tab-bl-link" onclick="switchTab('bl')" href="#">
+              <i class="fa fa-file-alt me-1"></i>Datos BL</a></li>
+          <li class="nav-item comex-tab">
+            <a class="nav-link" id="tab-merc-link" onclick="switchTab('merc')" href="#">
+              <i class="fa fa-boxes me-1"></i>Mercaderías</a></li>
+          <li class="nav-item comex-tab">
+            <a class="nav-link" id="tab-cont-link" onclick="switchTab('cont')" href="#">
+              <i class="fa fa-th-large me-1"></i>Contenedores</a></li>
+        </ul>
+
+        <div class="p-4">
+
+          <!-- ── Tab: Datos BL ── -->
+          <div id="tab-bl">
+
+            <!-- Campos solo lectura para Depósito -->
+            <div id="roFields" class="d-none">
+              <div class="section-title">Datos del embarque (solo lectura)</div>
+              <div class="row g-2 mb-3">
+                <div class="col-md-3"><div class="form-label">NroBL</div>
+                  <div class="readonly-field" id="ro-numero_bl"></div></div>
+                <div class="col-md-3"><div class="form-label">TLAT</div>
+                  <div class="readonly-field" id="ro-tlat"></div></div>
+                <div class="col-md-3"><div class="form-label">CUIT</div>
+                  <div class="readonly-field" id="ro-cuit"></div></div>
+                <div class="col-md-3"><div class="form-label">País</div>
+                  <div class="readonly-field" id="ro-pais"></div></div>
+                <div class="col-md-3"><div class="form-label">Manifiesto</div>
+                  <div class="readonly-field" id="ro-manifiesto"></div></div>
+                <div class="col-md-2"><div class="form-label">ID Comex</div>
+                  <div class="readonly-field" id="ro-id_comex"></div></div>
+              </div>
+              <div class="section-title">Completar al recibir mercadería</div>
+            </div>
+
+            <!-- Campos editables para Depósito -->
+            <div id="depFields">
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label">Estado *</label>
+                  <select id="f-estado" class="form-select">
+                    <option>PRECARGA</option><option>INGRESADO</option>
+                    <option>PARCIAL</option><option>NACIONALIZADO</option><option>EGRESADO</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Fecha de ingreso</label>
+                  <input type="date" id="f-dep-fecha" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Hora</label>
+                  <input type="time" id="f-dep-hora" class="form-control">
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label">Ubicación en depósito</label>
+                  <input type="text" id="f-ubicacion" class="form-control"
+                         placeholder="Ej: Sector A, Fila 3">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Observaciones</label>
+                  <textarea id="f-observaciones" class="form-control" rows="2"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Campos completos para Comex/Admin -->
+            <div id="comexFields" class="d-none">
+              <div class="section-title">Identificación</div>
+              <div class="row g-3">
+                <div class="col-1" style="min-width:90px">
+                  <label class="form-label">Aduana</label>
+                  <select id="f-aduana" class="form-select" style="font-size:12px;"></select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Número BL * <span id="cntBL" class="text-muted" style="font-size:11px;font-weight:400;"></span></label>
+                  <input type="text" id="f-numero_bl" class="form-control font-monospace"
+                         maxlength="21" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'');
+                         document.getElementById('cntBL').textContent=this.value.length+'/21'">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">ID Comex (interno)</label>
+                  <input type="text" id="f-id_comex" class="form-control">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">TLAT *</label>
+                  <input type="text" id="f-tlat" class="form-control font-monospace"
+                         oninput="this.value=this.value.toUpperCase()">
+                </div>
+              </div>
+
+              <div class="section-title">Datos del embarque</div>
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label">CUIT *</label>
+                  <input type="text" id="f-cuit" class="form-control" maxlength="11"
+                         placeholder="11 dígitos" oninput="this.value=this.value.replace(/\D/g,'')">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">País de origen *</label>
+                  <select id="f-pais" class="form-select"><option value="">— país —</option></select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Manifiesto *</label>
+                  <input type="text" id="f-manifiesto" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Fecha *</label>
+                  <input type="date" id="f-fecha" class="form-control">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Hora</label>
+                  <input type="time" id="f-hora" class="form-control">
+                </div>
+              </div>
+
+              <div class="section-title">Estado y ubicación</div>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">Estado *</label>
+                  <select id="f-estado2" class="form-select">
+                    <option>PRECARGA</option><option>INGRESADO</option>
+                    <option>PARCIAL</option><option>NACIONALIZADO</option><option>EGRESADO</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Ubicación en depósito</label>
+                  <input type="text" id="f-ubicacion2" class="form-control"
+                         placeholder="Ej: Sector A, Fila 3">
+                  <div class="form-text">Sin ubicación → se exporta como RETENIDO a ARCA</div>
+                </div>
+              </div>
+              <div class="row g-3 mt-1">
+                <div class="col-md-3">
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="f-cond_imo"
+                           onchange="document.getElementById('imoGroup').classList.toggle('d-none', !this.checked)">
+                    <label class="form-check-label" for="f-cond_imo">Mercadería IMO</label>
+                  </div>
+                </div>
+                <div class="col-md-3 d-none" id="imoGroup">
+                  <label class="form-label">Número IMO</label>
+                  <input type="text" id="f-num_imo" class="form-control">
+                </div>
+                <div class="col-md-3">
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="f-impedimento"
+                           onchange="document.getElementById('impGroup').classList.toggle('d-none', !this.checked);
+                                     document.getElementById('impDescGroup').classList.toggle('d-none', !this.checked)">
+                    <label class="form-check-label" for="f-impedimento">Impedimento</label>
+                  </div>
+                </div>
+                <div class="col-md-3 d-none" id="impGroup">
+                  <label class="form-label">Tipo impedimento *</label>
+                  <input type="text" id="f-tipo_impedimento" class="form-control">
+                </div>
+              </div>
+              <div class="row g-3 mt-1 d-none" id="impDescGroup">
+                <div class="col-md-8">
+                  <label class="form-label">Descripción impedimento *</label>
+                  <input type="text" id="f-desc_impedimento" class="form-control">
+                </div>
+              </div>
+              <div class="row g-3 mt-1">
+                <div class="col-12">
+                  <label class="form-label">Observaciones</label>
+                  <textarea id="f-observaciones2" class="form-control" rows="2"></textarea>
+                </div>
+              </div>
+            </div><!-- /comexFields -->
+
+          </div><!-- /tab-bl -->
+
+          <!-- ── Tab: Mercaderías ── -->
+          <div id="tab-merc" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="section-title mb-0">Detalle de mercaderías <small class="text-muted fw-normal ms-1" style="font-size:11px;">(mínimo 1 requerida)</small></span>
+              <button class="btn btn-sm btn-outline-primary btn-row-action" onclick="addMercRow()">
+                <i class="fa fa-plus me-1"></i>Agregar fila</button>
+            </div>
+            <div id="mercEmpty" class="alert alert-warning py-2 mb-2 d-none" style="font-size:12px;">
+              <i class="fa fa-triangle-exclamation me-1"></i>Debe agregar al menos una mercadería antes de guardar.
+            </div>
+            <div class="table-responsive">
+              <table class="table tbl-inline">
+                <thead><tr>
+                  <th>Embalaje *</th><th>Condición *</th><th>Cantidad *</th><th>Peso kg *</th>
+                  <th>OC</th><th>Pos.OC</th><th>EE</th><th>Pos.EE</th>
+                  <th>Despacho</th><th></th>
+                </tr></thead>
+                <tbody id="mercBody"></tbody>
+              </table>
+            </div>
+            <div id="alertCont05" class="alert alert-warning py-1 d-none" style="font-size:12px;">
+              <i class="fa fa-triangle-exclamation me-1"></i>Embalaje 05 = Contenedor. Completar la pestaña <strong>Contenedores</strong>.
+            </div>
+          </div>
+
+          <!-- ── Tab: Contenedores ── -->
+          <div id="tab-cont" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="section-title mb-0">Contenedores</span>
+              <button class="btn btn-sm btn-outline-primary btn-row-action" onclick="addContRow()">
+                <i class="fa fa-plus me-1"></i>Agregar fila</button>
+            </div>
+            <div class="table-responsive">
+              <table class="table tbl-inline">
+                <thead><tr>
+                  <th>Número</th><th>Longitud</th><th>Tipo</th><th>Bultos</th><th></th>
+                </tr></thead>
+                <tbody id="contBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /p-4 -->
+      </div><!-- /modal-body -->
+
+      <!-- Área de errores de validación -->
+      <div id="valErrors" class="d-none px-4 pb-2">
+        <div class="alert alert-danger py-2 mb-0" style="font-size:12px;" id="valErrorsList"></div>
+      </div>
+      <div id="valWarnings" class="d-none px-4 pb-2">
+        <div class="alert alert-warning py-2 mb-0" style="font-size:12px;" id="valWarningsList"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <span id="blLockInfo" class="text-warning me-auto" style="font-size:12px;"></span>
+        <button type="button" class="btn btn-secondary btn-sm"
+                data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBL"
+                onclick="guardarBL()">
+          <i class="fa fa-save me-1"></i>Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL USUARIO ═════════════════════════════════ -->
+<div class="modal fade" id="modalUser" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="modalUserTitle">Usuario</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Username *</label>
+          <input type="text" id="u-username" class="form-control form-control-sm"
+                 placeholder="sin espacios, minúsculas">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nombre completo *</label>
+          <input type="text" id="u-nombre" class="form-control form-control-sm">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Rol *</label>
+          <select id="u-rol" class="form-select form-select-sm">
+            <option value="comex">comex — Carga BL</option>
+            <option value="deposito">deposito — Recepción</option>
+            <option value="lectura">lectura — Solo consulta</option>
+            <option value="admin">admin — Administrador</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Contraseña <span id="pwdHint" class="text-muted" style="font-weight:400;">(dejar vacío = no cambiar)</span></label>
+          <div class="input-group input-group-sm">
+            <input type="password" id="u-password" class="form-control form-control-sm">
+            <button type="button" class="btn btn-outline-secondary" tabindex="-1"
+                    onclick="togglePwd('u-password', this)" title="Mostrar/ocultar contraseña">
+              <i class="fa fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="u-activo" checked>
+          <label class="form-check-label form-label" for="u-activo">Usuario activo</label>
+        </div>
+        <div id="userMsg" class="mt-2" style="font-size:12px;"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarUser()">
+          <i class="fa fa-save me-1"></i>Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODAL CONT. VACÍO ═════════════════════════════ -->
+<div class="modal fade" id="modalCV" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="cvModalTitle">Contenedor Vacío</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cv-id" value="">
+        <div class="mb-2">
+          <label class="form-label">Número *</label>
+          <input type="text" id="cv-numero" class="form-control form-control-sm"
+                 oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Longitud *</label>
+          <select id="cv-longitud" class="form-select form-select-sm">
+            <option value="20">20 pies</option>
+            <option value="40">40 pies</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Fecha *</label>
+          <input type="date" id="cv-fecha" class="form-control form-control-sm">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Hora</label>
+          <input type="time" id="cv-hora" class="form-control form-control-sm">
+        </div>
+        <div id="cvMsg" class="mt-2" style="font-size:12px;"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarCV()">
+          <i class="fa fa-save me-1"></i>Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast de notificación -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+  <div id="toast" class="toast align-items-center text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ══════════════════════════ ESTADO GLOBAL ══════════════════════════
+const USER     = {{ user | tojson }};
+const ROL      = USER.rol;
+let   BLS      = [];    // cache de BLs
+let   MAESTROS = {};    // países, embalajes, aduanas
+let   CUR_BL_ID = null; // BL en edición
+let   CUR_USER_ID = null; // usuario en edición
+let   _blModal, _userModal, _cvModal, _toast;
+
+// ══════════════════════════ INIT ═══════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  _blModal   = new bootstrap.Modal(document.getElementById('modalBL'));
+  _userModal = new bootstrap.Modal(document.getElementById('modalUser'));
+  _cvModal   = new bootstrap.Modal(document.getElementById('modalCV'));
+  _toast     = new bootstrap.Toast(document.getElementById('toast'), {delay:3000});
+
+  // Shell: nombre y rol
+  document.getElementById('userNombre').textContent = USER.nombre;
+  const rolColors = {admin:'danger',comex:'primary',deposito:'success',lectura:'secondary'};
+  document.getElementById('userRolBadge').textContent = ROL;
+  document.getElementById('userRolBadge').className =
+    `badge bg-${rolColors[ROL]||'secondary'} ms-1`;
+
+  // Mostrar elementos según rol
+  if (ROL === 'admin') {
+    document.getElementById('shellBar').classList.add('role-admin');
+  }
+  // Nuevo BL: solo admin y comex pueden crear
+  if (ROL === 'admin' || ROL === 'comex') {
+    document.getElementById('btnNuevoBL').style.display = '';
+  }
+  // Exportar Excel: admin, comex y deposito
+  if (ROL === 'admin' || ROL === 'comex' || ROL === 'deposito') {
+    document.getElementById('btnExport').style.display = '';
+  }
+  // Nuevo contenedor vacío: admin y deposito
+  if (ROL === 'admin' || ROL === 'deposito') {
+    document.getElementById('btnNuevoCV') && (document.getElementById('btnNuevoCV').style.display='');
+  }
+
+  // Liberar lock y limpiar validaciones al cerrar el modal
+  document.getElementById('modalBL').addEventListener('hidden.bs.modal', () => {
+    if (CUR_BL_ID) {
+      fetch(`/api/bl/${CUR_BL_ID}/lock`, {method:'DELETE'}).catch(()=>{});
+      CUR_BL_ID = null;
+    }
+    mostrarErrores([], []);
+  });
+
+  await Promise.all([loadMaestros()]);
+  showPage('dashboard');
+});
+
+// ══════════════════════════ NAVEGACIÓN ════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.add('d-none'));
+  document.querySelectorAll('[data-page]').forEach(a => a.classList.remove('active'));
+  document.getElementById(`page-${name}`)?.classList.remove('d-none');
+  document.querySelector(`[data-page="${name}"]`)?.classList.add('active');
+
+  // Cargar datos según la página
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'stock')     loadBLs();
+  if (name === 'cv')        loadCVs();
+  if (name === 'export')    loadExportLog();
+  if (name === 'usuarios')  loadUsuarios();
+  if (name === 'config')    loadConfig();
+}
+
+// ══════════════════════════ API HELPERS ═══════════════════════════
+async function api(url, opts={}) {
+  const res = await fetch(url, {
+    headers: {'Content-Type':'application/json', ...opts.headers},
+    ...opts
+  });
+  if (res.status === 401) { window.location.href='/login'; return null; }
+  return res;
+}
+
+// ══════════════════════════ MAESTROS ═════════════════════════════
+async function loadMaestros() {
+  const res = await api('/api/maestros');
+  if (!res || !res.ok) return;
+  MAESTROS = await res.json();
+
+  // Poblar selects de países
+  const paisSel = document.getElementById('f-pais');
+  if (paisSel) {
+    MAESTROS.paises.forEach(p => {
+      paisSel.add(new Option(`${p.codigo} — ${p.nombre}`, p.codigo));
+    });
+  }
+
+  // Poblar selects de aduanas
+  const aduSel = document.getElementById('f-aduana');
+  if (aduSel) {
+    MAESTROS.aduanas.forEach(a => {
+      aduSel.add(new Option(`${a.codigo} ${a.nombre}`, a.codigo));
+    });
+  }
+}
+
+// ══════════════════════════ DASHBOARD ════════════════════════════
+async function loadDashboard() {
+  document.getElementById('dashFecha').textContent =
+    new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const res = await api('/api/stats');
+  if (!res || !res.ok) return;
+  const d = await res.json();
+
+  const est = d.por_estado || {};
+  document.getElementById('st-total').textContent = d.total || 0;
+  ['PRECARGA','INGRESADO','PARCIAL','NACIONALIZADO','EGRESADO'].forEach(e => {
+    const el = document.getElementById(`st-${e}`);
+    if (el) el.textContent = est[e] || 0;
+  });
+
+  // Actividad reciente
+  const al = document.getElementById('actList');
+  if (d.recientes && d.recientes.length) {
+    const dotColor = {PRECARGA:'#aaa',INGRESADO:'#28a745',PARCIAL:'#f90',
+                      NACIONALIZADO:'#0070F2',EGRESADO:'#9b59b6'};
+    al.innerHTML = d.recientes.map(r => `
+      <div class="act-item">
+        <div class="act-dot" style="background:${dotColor[r.estado]||'#aaa'}"></div>
+        <div>
+          <strong class="mono">${r.numero_bl}</strong>
+          <span class="chip chip-${r.estado} ms-1">${r.estado}</span>
+          <div style="font-size:11px;color:#888;">${r.usuario||'—'} · ${fmtDt(r.updated_at)}</div>
+        </div>
+      </div>`).join('');
+  } else {
+    al.innerHTML = '<div class="text-muted text-center py-2" style="font-size:13px;">Sin actividad aún</div>';
+  }
+
+  // Info envío
+  const ei = document.getElementById('envioInfo');
+  if (d.envio_auto) {
+    ei.innerHTML = `<i class="fa fa-clock text-success me-1"></i>
+      Envío automático habilitado a las <strong>${d.hora_envio}</strong> todos los días hábiles.`;
+  } else {
+    ei.innerHTML = `<i class="fa fa-clock text-muted me-1"></i>
+      Envío automático <strong>deshabilitado</strong>. Solo manual.`;
+  }
+
+  const ue = document.getElementById('ultimoExport');
+  if (d.ultimo_export) {
+    const ok = d.ultimo_export.estado === 'OK';
+    ue.innerHTML = `Último envío: <strong>${fmtDt(d.ultimo_export.ts)}</strong>
+      <span class="badge ${ok?'bg-success':'bg-danger'} ms-1">${d.ultimo_export.estado}</span>
+      (${d.ultimo_export.registros} BLs)`;
+  } else {
+    ue.textContent = 'Sin exportaciones aún.';
+  }
+}
+
+// ══════════════════════════ STOCK BL ═════════════════════════════
+async function loadBLs() {
+  document.getElementById('blBody').innerHTML =
+    '<tr><td colspan="7" class="text-center py-3 text-muted">Cargando...</td></tr>';
+  const res = await api('/api/bl');
+  if (!res || !res.ok) return;
+  BLS = await res.json();
+  document.getElementById('stockSubtitle').textContent = `${BLS.length} BLs en el sistema`;
+  filtrarBLs();
+}
+
+function filtrarBLs() {
+  const txt  = (document.getElementById('filtroTexto')?.value  || '').toLowerCase();
+  const est  = document.getElementById('filtroEstado')?.value  || '';
+  const ubic = document.getElementById('filtroUbic')?.value    || '';
+
+  let list = BLS.filter(b => {
+    if (est && b.estado !== est) return false;
+    if (ubic === 'sin' && b.ubicacion) return false;
+    if (ubic === 'con' && !b.ubicacion) return false;
+    if (txt) {
+      const hay = `${b.numero_bl} ${b.tlat} ${b.id_comex} ${b.manifiesto}`.toLowerCase();
+      if (!hay.includes(txt)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('filtroCount').textContent = `${list.length} de ${BLS.length}`;
+  renderBLTable(list);
+}
+
+function renderBLTable(list) {
+  const tbody = document.getElementById('blBody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Sin resultados</td></tr>';
+    return;
+  }
+
+  // Qué sección puede editar este rol
+  const mySection = {admin:'full', comex:'header', deposito:'deposito', lectura:null}[ROL];
+
+  tbody.innerHTML = list.map(b => {
+    // ¿Hay lock en mi sección?
+    const myLock = b.locks.find(l =>
+      l.section === mySection || l.section === 'full'
+    );
+    const lockChip = myLock
+      ? `<span class="chip chip-locked ms-1" title="Editando: ${myLock.locked_by}">🔒 ${myLock.locked_by}</span>`
+      : '';
+
+    const ubic = b.ubicacion
+      ? `<span class="text-muted">${b.ubicacion}</span>`
+      : `<span class="chip chip-sinubic">Sin ubicación</span>`;
+
+    // Botones según rol
+    let btns = `<button class="btn btn-outline-secondary btn-act me-1" onclick="verBL(${b.id})"
+                  title="Ver detalle"><i class="fa fa-eye"></i></button>`;
+
+    if (ROL !== 'lectura') {
+      const locked   = !!myLock;
+      const btnTitle = locked ? `Bloqueado por ${myLock?.locked_by}` : 'Editar';
+      const lbl      = ROL === 'deposito' ? 'Completar' : 'Editar';
+      btns += `<button class="btn btn-primary btn-act me-1" onclick="openBLForm(${b.id})"
+                 title="${btnTitle}" ${locked?'disabled':''}>
+                 <i class="fa fa-edit me-1"></i>${lbl}</button>`;
+    }
+    if (ROL === 'admin') {
+      btns += `<button class="btn btn-outline-danger btn-act" onclick="deleteBL(${b.id},'${b.numero_bl}')"
+                 title="Eliminar"><i class="fa fa-trash"></i></button>`;
+    }
+
+    const sem = semaforo(b);
+    return `<tr>
+      <td class="mono"><span title="${sem.title}">${sem.ico}</span> ${b.numero_bl}${lockChip}</td>
+      <td class="mono" style="font-size:11px;">${b.tlat||'—'}</td>
+      <td><span class="chip chip-${b.estado}">${b.estado}</span></td>
+      <td>${ubic}</td>
+      <td style="font-size:11px;color:#888;">${fmtDt(b.updated_at)}</td>
+      <td style="font-size:12px;color:#666;">${b.updated_by_nombre||'—'}</td>
+      <td style="white-space:nowrap;">${btns}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════ VER BL (solo lectura) ════════════════
+async function verBL(id) {
+  const res = await api(`/api/bl/${id}`);
+  if (!res || !res.ok) return;
+  const d = await res.json(); const b = d.bl;
+
+  // Abre el modal en modo solo lectura
+  openBLForm(id, true);
+}
+
+// ══════════════════════════ FORM BL ═══════════════════════════════
+async function openBLForm(id, soloLectura=false) {
+  CUR_BL_ID = id;
+  const esNuevo = !id;
+  const _modoVer = soloLectura || ROL === 'lectura';
+  document.getElementById('modalBLTitle').textContent =
+    esNuevo ? 'Nuevo BL' : (_modoVer ? 'Visualizar BL...' : 'Editar BL...');
+  document.getElementById('blLockInfo').textContent = '';
+  document.getElementById('btnGuardarBL').style.display =
+    (soloLectura || ROL === 'lectura') ? 'none' : '';
+
+  // Configurar tabs y campos según rol
+  const esComexAdmin = (ROL === 'admin' || ROL === 'comex') && !soloLectura;
+  const esDeposito   = ROL === 'deposito' && !soloLectura;
+
+  // Todos los roles ven las tres pestañas (lectura en modo solo lectura vía CSS)
+  const esLectura = ROL === 'lectura';
+  ['tab-merc-link','tab-cont-link'].forEach(tid => {
+    const li = document.getElementById(tid)?.closest('li');
+    if (li) li.style.display = '';
+  });
+
+  // Modo solo lectura: deshabilitar edición en modal
+  const modalBody = document.querySelector('#modalBL .modal-body');
+  if (soloLectura || ROL === 'lectura') {
+    modalBody?.classList.add('modal-readonly');
+  } else {
+    modalBody?.classList.remove('modal-readonly');
+  }
+
+  document.getElementById('comexFields').classList.toggle('d-none', !esComexAdmin);
+  document.getElementById('roFields').classList.toggle('d-none', esComexAdmin || esNuevo);
+  document.getElementById('depFields').classList.toggle('d-none', esComexAdmin && !soloLectura);
+
+  // Resetear form
+  switchTab('bl');
+  resetBLForm();
+
+  if (id) {
+    const res = await api(`/api/bl/${id}`);
+    if (!res || !res.ok) { toast('Error al cargar BL', 'danger'); return; }
+    const d = await res.json(); const b = d.bl;
+
+    // Campos de solo lectura (para deposito)
+    if (!esComexAdmin) {
+      ['numero_bl','tlat','cuit','manifiesto','id_comex'].forEach(f => {
+        const el = document.getElementById(`ro-${f}`);
+        if (el) el.textContent = b[f] || '—';
+      });
+      const paiNom = MAESTROS.paises?.find(p => p.codigo == b.pais);
+      const roPais = document.getElementById('ro-pais');
+      if (roPais) roPais.textContent = paiNom ? `${paiNom.nombre}` : b.pais || '—';
+    }
+
+    // Actualizar título con número de BL real
+    document.getElementById('modalBLTitle').textContent =
+      _modoVer ? `Visualizar BL ${b.numero_bl}` : `Editar BL ${b.numero_bl}`;
+
+    // Campos editables
+    setVal('f-estado',    b.estado);
+    setVal('f-dep-fecha', b.fecha);
+    setVal('f-dep-hora',  b.hora);
+    setVal('f-ubicacion', b.ubicacion);
+    setVal('f-observaciones', b.observaciones);
+
+    if (esComexAdmin) {
+      setVal('f-aduana', b.aduana);
+      setVal('f-numero_bl', b.numero_bl);
+      setVal('f-id_comex', b.id_comex);
+      setVal('f-tlat', b.tlat);
+      setVal('f-cuit', b.cuit);
+      setVal('f-pais', b.pais);
+      setVal('f-manifiesto', b.manifiesto);
+      setVal('f-fecha', b.fecha);
+      setVal('f-hora', b.hora);
+      setVal('f-estado2', b.estado);
+      setVal('f-ubicacion2', b.ubicacion);
+      setVal('f-observaciones2', b.observaciones);
+      document.getElementById('f-cond_imo').checked = !!b.cond_imo;
+      document.getElementById('f-impedimento').checked = !!b.impedimento;
+      document.getElementById('imoGroup').classList.toggle('d-none', !b.cond_imo);
+      document.getElementById('impGroup').classList.toggle('d-none', !b.impedimento);
+      document.getElementById('impDescGroup').classList.toggle('d-none', !b.impedimento);
+      setVal('f-num_imo', b.num_imo);
+      setVal('f-tipo_impedimento', b.tipo_impedimento);
+      setVal('f-desc_impedimento', b.desc_impedimento);
+      const cnt = (b.numero_bl||'').length;
+      document.getElementById('cntBL').textContent = cnt ? `${cnt}/21` : '';
+
+      // Mercaderías y contenedores
+      renderMercRows(d.mercaderias || []);
+      renderContRows(d.contenedores || []);
+    }
+
+    // Depósito, solo-lectura y lectura cargan mercaderías y contenedores para visualizar
+    if (esDeposito || soloLectura || esLectura) {
+      renderMercRows(d.mercaderias || []);
+      renderContRows(d.contenedores || []);
+    }
+
+    // Mostrar locks activos
+    if (d.locks && d.locks.length) {
+      document.getElementById('blLockInfo').textContent =
+        '🔒 ' + d.locks.map(l => `${l.nombre} (${l.section})`).join(', ');
+    }
+  } else {
+    // Nuevo BL: poner fecha de hoy
+    setVal('f-fecha', new Date().toISOString().slice(0,10));
+    setVal('f-aduana', '0001');
+    if (MAESTROS.aduanas?.length) setVal('f-aduana', MAESTROS.aduanas[0].codigo);
+  }
+
+  _blModal.show();
+}
+
+function resetBLForm() {
+  ['f-estado','f-dep-fecha','f-dep-hora','f-ubicacion','f-observaciones',
+   'f-numero_bl','f-id_comex','f-tlat','f-cuit','f-manifiesto',
+   'f-fecha','f-hora','f-estado2','f-ubicacion2',
+   'f-observaciones2','f-num_imo','f-tipo_impedimento','f-desc_impedimento',
+   'f-pais'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = '';
+  });
+  ['f-cond_imo','f-impedimento'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
+  document.getElementById('imoGroup')?.classList.add('d-none');
+  document.getElementById('impGroup')?.classList.add('d-none');
+  document.getElementById('impDescGroup')?.classList.add('d-none');
+  document.getElementById('mercBody').innerHTML = '';
+  document.getElementById('contBody').innerHTML = '';
+  document.getElementById('cntBL').textContent = '';
+}
+
+function switchTab(name) {
+  ['bl','merc','cont'].forEach(t => {
+    document.getElementById(`tab-${t}`)?.classList.add('d-none');
+    document.getElementById(`tab-${t}-link`)?.classList.remove('active');
+  });
+  document.getElementById(`tab-${name}`)?.classList.remove('d-none');
+  document.getElementById(`tab-${name}-link`)?.classList.add('active');
+}
+
+async function guardarBL() {
+  const esComexAdmin = ROL === 'admin' || ROL === 'comex';
+
+  let payload = {};
+  if (esComexAdmin) {
+    payload = {
+      estado:   getVal('f-estado2') || getVal('f-estado'),
+      aduana:   getVal('f-aduana'),
+      numero_bl: getVal('f-numero_bl'),
+      id_comex: getVal('f-id_comex'),
+      tlat:     getVal('f-tlat'),
+      cuit:     getVal('f-cuit'),
+      pais:     getVal('f-pais'),
+      manifiesto: getVal('f-manifiesto'),
+      fecha:    getVal('f-fecha'),
+      hora:     getVal('f-hora'),
+      cond_merc: null,   // lo llena el depósito en su formulario
+      ubicacion: getVal('f-ubicacion2'),
+      cond_imo: document.getElementById('f-cond_imo').checked,
+      num_imo:  getVal('f-num_imo'),
+      impedimento: document.getElementById('f-impedimento').checked,
+      tipo_impedimento: getVal('f-tipo_impedimento'),
+      desc_impedimento: getVal('f-desc_impedimento'),
+      observaciones: getVal('f-observaciones2'),
+      mercaderias:  getMercData(),
+      contenedores: getContData()
+    };
+    // Validar antes de guardar
+    const { errors, warnings } = validar(payload);
+    mostrarErrores(errors, warnings);
+    if (errors.length) {
+      // Si el error es de mercaderías, llevar al usuario a esa pestaña
+      if (errors.some(e => e.includes('mercadería') || e.includes('Mercadería'))) switchTab('merc');
+      return;
+    }
+  } else {
+    // Depósito
+    payload = {
+      estado:    getVal('f-estado'),
+      fecha:     getVal('f-dep-fecha') || null,
+      hora:      getVal('f-dep-hora')  || null,
+      ubicacion: getVal('f-ubicacion'),
+      observaciones: getVal('f-observaciones')
+    };
+    // Incluir mercaderías y contenedores editados por el depósito
+    payload.mercaderias  = getMercData();
+    payload.contenedores = getContData();
+
+    // Validar mercaderías
+    const depErrs = [];
+    if (payload.mercaderias.length === 0) {
+      depErrs.push('Se requiere al menos una línea de mercadería.');
+      document.getElementById('mercEmpty')?.classList.remove('d-none');
+    } else {
+      document.getElementById('mercEmpty')?.classList.add('d-none');
+      payload.mercaderias.forEach((m, i) => valMerc(m, i).forEach(e => depErrs.push(e)));
+    }
+
+    // Validar: estado avanzado requiere fecha y ubicación
+    const estadosConFecha = ['INGRESADO','PARCIAL','NACIONALIZADO'];
+    if (estadosConFecha.includes(payload.estado)) {
+      if (!payload.fecha)     depErrs.push(`Estado ${payload.estado} requiere fecha de ingreso.`);
+      if (!payload.ubicacion) depErrs.push(`Estado ${payload.estado} requiere ubicación en depósito.`);
+    }
+
+    if (depErrs.length) {
+      mostrarErrores(depErrs, []);
+      if (depErrs.some(e => e.includes('mercadería') || e.includes('Mercadería'))) switchTab('merc');
+      return;
+    }
+    mostrarErrores([], []);
+  }
+
+  const btn = document.getElementById('btnGuardarBL');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
+
+  const url = CUR_BL_ID ? `/api/bl/${CUR_BL_ID}` : '/api/bl';
+  const method = CUR_BL_ID ? 'PUT' : 'POST';
+  const res = await api(url, {method, body: JSON.stringify(payload)});
+
+  btn.disabled = false; btn.innerHTML = '<i class="fa fa-save me-1"></i>Guardar';
+
+  if (!res) return;
+  const d = await res.json();
+  if (res.ok) {
+    toast(CUR_BL_ID ? 'BL actualizado ✓' : 'BL creado ✓', 'success');
+    _blModal.hide();
+    loadBLs();
+  } else if (res.status === 423) {
+    document.getElementById('blLockInfo').textContent = '🔒 ' + d.error;
+    toast(d.error, 'warning');
+  } else {
+    toast(d.error || 'Error al guardar', 'danger');
+  }
+}
+
+async function deleteBL(id, nro) {
+  if (!confirm(`¿Eliminar el BL ${nro}?\nEsta acción elimina también las mercaderías y contenedores asociados.`)) return;
+  const res = await api(`/api/bl/${id}`, {method:'DELETE'});
+  if (res?.ok) { toast('BL eliminado', 'success'); loadBLs(); }
+  else toast('Error al eliminar', 'danger');
+}
+
+// ══════════════════════════ MERCADERÍAS (tabla inline) ════════════
+function renderMercRows(rows) {
+  const embs = MAESTROS.embalajes || [];
+  document.getElementById('mercBody').innerHTML = rows.map((m,i) => mercRow(m,i,embs)).join('');
+}
+
+function addMercRow() {
+  const embs = MAESTROS.embalajes || [];
+  const tbody = document.getElementById('mercBody');
+  const i = tbody.rows.length;
+  tbody.insertAdjacentHTML('beforeend', mercRow({},i,embs));
+}
+
+function mercRow(m, i, embs) {
+  const opts = embs.map(e =>
+    `<option value="${e.codigo}" ${m.embalaje==e.codigo?'selected':''}>${e.codigo} ${e.nombre}</option>`
+  ).join('');
+  const cond = m.condicion || 'Buena';
+  return `<tr>
+    <td><select class="form-select" name="m_emb" onchange="chkEmb05()">${opts}</select></td>
+    <td><select class="form-select" name="m_cond">
+      <option value="Buena" ${cond==='Buena'?'selected':''}>Buena</option>
+      <option value="Mala"  ${cond==='Mala' ?'selected':''}>Mala</option>
+    </select></td>
+    <td><input type="number" class="form-control" name="m_cant" min="0" step="any" value="${m.cantidad||''}"></td>
+    <td><input type="number" class="form-control" name="m_peso" min="0" step="any" value="${m.peso||''}"></td>
+    <td><input type="text" class="form-control" name="m_oc" value="${m.oc||''}"></td>
+    <td><input type="text" class="form-control" name="m_poc" value="${m.pos_oc||''}"></td>
+    <td><input type="text" class="form-control" name="m_ee" value="${m.ee||''}"></td>
+    <td><input type="text" class="form-control" name="m_pee" value="${m.pos_ee||''}"></td>
+    <td><input type="text" class="form-control" name="m_desp" value="${m.despacho||''}"></td>
+    <td><button class="btn btn-outline-danger btn-act btn-row-action" onclick="this.closest('tr').remove();chkEmb05()"
+          type="button"><i class="fa fa-times"></i></button></td>
+  </tr>`;
+}
+
+function getMercData() {
+  return [...document.querySelectorAll('#mercBody tr')].map(tr => ({
+    embalaje: tr.querySelector('[name=m_emb]')?.value,
+    condicion: tr.querySelector('[name=m_cond]')?.value || 'Buena',
+    cantidad: tr.querySelector('[name=m_cant]')?.value || null,
+    peso:     tr.querySelector('[name=m_peso]')?.value || null,
+    oc:       tr.querySelector('[name=m_oc]')?.value,
+    pos_oc:   tr.querySelector('[name=m_poc]')?.value,
+    ee:       tr.querySelector('[name=m_ee]')?.value,
+    pos_ee:   tr.querySelector('[name=m_pee]')?.value,
+    despacho: tr.querySelector('[name=m_desp]')?.value
+  })).filter(m => m.embalaje);
+}
+
+/** Muestra/oculta el aviso de embalaje 05 en tiempo real */
+function chkEmb05() {
+  const tiene05 = getMercData().some(m => String(m.embalaje) === '05');
+  document.getElementById('alertCont05')?.classList.toggle('d-none', !tiene05);
+}
+
+// ══════════════════════════ CONTENEDORES (tabla inline) ══════════
+function renderContRows(rows) {
+  document.getElementById('contBody').innerHTML = rows.map(c => contRow(c)).join('');
+}
+
+function addContRow() {
+  document.getElementById('contBody').insertAdjacentHTML('beforeend', contRow({}));
+}
+
+function contRow(c) {
+  return `<tr>
+    <td><input type="text" class="form-control font-monospace" name="c_num"
+          value="${c.numero||''}" oninput="this.value=this.value.toUpperCase()"></td>
+    <td><select class="form-select" name="c_long">
+      <option value="20" ${c.longitud=='20'?'selected':''}>20 pies</option>
+      <option value="40" ${c.longitud=='40'?'selected':''}>40 pies</option>
+    </select></td>
+    <td><select class="form-select" name="c_tipo">
+      <option ${c.tipo=='House'?'selected':''}>House</option>
+      <option ${c.tipo=='Pier'?'selected':''}>Pier</option>
+      <option ${c.tipo=='Correo'?'selected':''}>Correo</option>
+    </select></td>
+    <td><input type="number" class="form-control" name="c_bult" min="0"
+          value="${c.bultos||''}"></td>
+    <td><button class="btn btn-outline-danger btn-act btn-row-action" onclick="this.closest('tr').remove()"
+          type="button"><i class="fa fa-times"></i></button></td>
+  </tr>`;
+}
+
+function getContData() {
+  return [...document.querySelectorAll('#contBody tr')].map(tr => ({
+    numero:  tr.querySelector('[name=c_num]')?.value,
+    longitud: tr.querySelector('[name=c_long]')?.value,
+    tipo:    tr.querySelector('[name=c_tipo]')?.value,
+    bultos:  tr.querySelector('[name=c_bult]')?.value || null
+  })).filter(c => c.numero);
+}
+
+// ══════════════════════════ CONTENEDORES VACÍOS ═══════════════════
+async function loadCVs() {
+  const res = await api('/api/contenedor-vacio');
+  if (!res || !res.ok) return;
+  const cvs = await res.json();
+  const tbody = document.getElementById('cvBody');
+  const canEdit = ROL === 'admin' || ROL === 'deposito';
+  _cvCache = cvs;
+  tbody.innerHTML = cvs.length ? cvs.map(cv => `
+    <tr>
+      <td class="mono">${cv.numero}</td>
+      <td>${cv.longitud} pies</td>
+      <td>${fmtFecha(cv.fecha)}</td>
+      <td>${cv.hora||'—'}</td>
+      <td>${canEdit ? `
+            <button class="btn btn-outline-secondary btn-act" onclick="editCV(${cv.id})"
+            title="Editar"><i class="fa fa-pen"></i></button>
+            <button class="btn btn-outline-danger btn-act" onclick="deleteCV(${cv.id})"
+            title="Eliminar"><i class="fa fa-trash"></i></button>` : ''}</td>
+    </tr>`).join('') :
+    '<tr><td colspan="5" class="text-center py-4 text-muted">Sin contenedores vacíos</td></tr>';
+}
+
+let _cvCache = [];
+
+function openCVForm() {
+  document.getElementById('cvMsg').textContent = '';
+  document.getElementById('cvModalTitle').textContent = 'Contenedor Vacío';
+  document.getElementById('cv-id').value = '';
+  ['cv-numero','cv-fecha','cv-hora'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value='';
+  });
+  document.getElementById('cv-fecha').value = new Date().toISOString().slice(0,10);
+  _cvModal.show();
+}
+
+function editCV(id) {
+  const cv = _cvCache.find(c => c.id === id);
+  if (!cv) return;
+  document.getElementById('cvMsg').textContent = '';
+  document.getElementById('cvModalTitle').textContent = 'Editar Contenedor Vacío';
+  document.getElementById('cv-id').value = cv.id;
+  document.getElementById('cv-numero').value = cv.numero || '';
+  document.getElementById('cv-longitud').value = cv.longitud || '20';
+  document.getElementById('cv-fecha').value = cv.fecha || '';
+  document.getElementById('cv-hora').value = (cv.hora || '').slice(0,5);
+  _cvModal.show();
+}
+
+async function guardarCV() {
+  const id = document.getElementById('cv-id').value;
+  const payload = {
+    numero:   document.getElementById('cv-numero').value.toUpperCase(),
+    longitud: document.getElementById('cv-longitud').value,
+    fecha:    document.getElementById('cv-fecha').value,
+    hora:     document.getElementById('cv-hora').value
+  };
+  if (!payload.numero || !payload.fecha) {
+    document.getElementById('cvMsg').textContent = 'Número y fecha son obligatorios'; return;
+  }
+  const res = id
+    ? await api(`/api/contenedor-vacio/${id}`, {method:'PUT', body:JSON.stringify(payload)})
+    : await api('/api/contenedor-vacio', {method:'POST', body:JSON.stringify(payload)});
+  if (res?.ok) { toast(id ? 'Contenedor actualizado ✓' : 'Contenedor agregado ✓','success'); _cvModal.hide(); loadCVs(); }
+  else toast('Error al guardar','danger');
+}
+
+async function deleteCV(id) {
+  if (!confirm('¿Eliminar este contenedor vacío?')) return;
+  const res = await api(`/api/contenedor-vacio/${id}`, {method:'DELETE'});
+  if (res?.ok) { toast('Eliminado','success'); loadCVs(); }
+}
+
+// ══════════════════════════ EXPORTACIONES ════════════════════════
+async function loadExportLog() {
+  const res = await api('/api/export/log');
+  if (!res || !res.ok) return;
+  const logs = await res.json();
+  const tbody = document.getElementById('exportBody');
+  tbody.innerHTML = logs.length ? logs.map(l => {
+    const ok = l.estado === 'OK';
+    return `<tr>
+      <td style="font-size:12px;">${fmtDt(l.ts)}</td>
+      <td class="mono" style="font-size:11px;">${l.archivo}</td>
+      <td>${l.registros}</td>
+      <td>${l.usuario||'Auto'}</td>
+      <td><span class="badge ${ok?'bg-success':'bg-danger'}">${l.estado}</span></td>
+      <td style="font-size:11px;color:#888;">${l.mensaje||''}</td>
+    </tr>`;
+  }).join('') :
+    '<tr><td colspan="6" class="text-center py-4 text-muted">Sin exportaciones aún</td></tr>';
+}
+
+async function exportarARCA() {
+  if (!confirm('¿Generar el Excel y guardarlo en la carpeta SAP ahora?')) return;
+  const btn = document.getElementById('btnExport');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+  try {
+    const res = await api('/api/export', {method:'POST'});
+    const d = res ? await res.json() : null;
+    if (res?.ok) {
+      toast(`Excel guardado en la carpeta SAP ✓ (${d.registros} BLs) → ${d.archivo}`, 'success');
+      loadExportLog();
+    } else {
+      toast(d?.error || 'Error al exportar', 'danger');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa fa-upload me-1"></i>Enviar a SAP ahora';
+  }
+}
+
+// ══════════════════════════ USUARIOS ═════════════════════════════
+async function loadUsuarios() {
+  const res = await api('/api/usuarios');
+  if (!res || !res.ok) return;
+  const users = await res.json();
+  const rolCol = {admin:'danger',comex:'primary',deposito:'success',lectura:'secondary'};
+  document.getElementById('usersBody').innerHTML = users.map(u => `
+    <tr class="${u.activo?'':'table-secondary'}">
+      <td class="mono">${u.username}</td>
+      <td>${u.nombre}</td>
+      <td><span class="badge bg-${rolCol[u.rol]||'secondary'}">${u.rol}</span></td>
+      <td>${u.activo ? '<span class="badge bg-success">Activo</span>'
+                     : '<span class="badge bg-secondary">Inactivo</span>'}</td>
+      <td style="font-size:11px;color:#888;">${fmtDt(u.created_at)}</td>
+      <td><button class="btn btn-outline-primary btn-act" onclick="openUserForm(${u.id})">
+        <i class="fa fa-edit"></i></button></td>
+    </tr>`).join('');
+}
+
+function openUserForm(id) {
+  CUR_USER_ID = id;
+  document.getElementById('modalUserTitle').textContent = id ? 'Editar usuario' : 'Nuevo usuario';
+  document.getElementById('userMsg').textContent = '';
+  document.getElementById('pwdHint').style.display = id ? '' : 'none';
+  // Reset
+  ['u-username','u-nombre','u-password'].forEach(i => {
+    const el = document.getElementById(i); if (el) el.value='';
+  });
+  resetPwdField('u-password');
+  document.getElementById('u-activo').checked = true;
+  document.getElementById('u-username').readOnly = !!id; // no cambiar username existente
+
+  if (id) {
+    // Buscar en la lista ya cargada
+    fetch('/api/usuarios').then(r=>r.json()).then(users => {
+      const u = users.find(x => x.id === id);
+      if (!u) return;
+      document.getElementById('u-username').value = u.username;
+      document.getElementById('u-nombre').value   = u.nombre;
+      document.getElementById('u-rol').value      = u.rol;
+      document.getElementById('u-activo').checked = !!u.activo;
+    });
+  }
+  _userModal.show();
+}
+
+async function guardarUser() {
+  const payload = {
+    username: document.getElementById('u-username').value.trim(),
+    nombre:   document.getElementById('u-nombre').value.trim(),
+    rol:      document.getElementById('u-rol').value,
+    password: document.getElementById('u-password').value,
+    activo:   document.getElementById('u-activo').checked
+  };
+  const msgEl = document.getElementById('userMsg');
+  if (!payload.username || !payload.nombre) {
+    msgEl.textContent = 'Username y nombre son obligatorios'; return;
+  }
+  if (!CUR_USER_ID && !payload.password) {
+    msgEl.textContent = 'La contraseña es obligatoria para un usuario nuevo'; return;
+  }
+  const url    = CUR_USER_ID ? `/api/usuarios/${CUR_USER_ID}` : '/api/usuarios';
+  const method = CUR_USER_ID ? 'PUT' : 'POST';
+  const res    = await api(url, {method, body: JSON.stringify(payload)});
+  if (!res) return;
+  const d = await res.json();
+  if (res.ok) {
+    toast(CUR_USER_ID ? 'Usuario actualizado ✓' : 'Usuario creado ✓', 'success');
+    _userModal.hide(); loadUsuarios();
+  } else {
+    msgEl.textContent = d.error || 'Error al guardar';
+  }
+}
+
+// ══════════════════════════ CONFIGURACIÓN ════════════════════════
+async function loadConfig() {
+  const res = await api('/api/config');
+  if (!res || !res.ok) return;
+  const cfg = await res.json();
+  setVal('cfgCarpeta',  cfg.carpeta_arca);
+  setVal('cfgLabel',    cfg.label_arca);
+  setVal('cfgHora',     cfg.hora_envio);
+  setVal('cfgEmpresa',  cfg.empresa);
+  document.getElementById('cfgEnvioAuto').checked = cfg.envio_auto !== false;
+}
+
+async function saveConfig() {
+  const payload = {
+    carpeta_arca: getVal('cfgCarpeta'),
+    label_arca:   getVal('cfgLabel'),
+    hora_envio:   getVal('cfgHora'),
+    empresa:      getVal('cfgEmpresa'),
+    envio_auto:   document.getElementById('cfgEnvioAuto').checked
+  };
+  const res = await api('/api/config', {method:'PUT', body:JSON.stringify(payload)});
+  const msgEl = document.getElementById('cfgMsg');
+  if (res?.ok) {
+    msgEl.innerHTML = '<span class="text-success"><i class="fa fa-check me-1"></i>Configuración guardada</span>';
+    toast('Configuración guardada ✓','success');
+  } else {
+    msgEl.innerHTML = '<span class="text-danger">Error al guardar</span>';
+  }
+}
+
+async function testCarpeta() {
+  // No podemos acceder al sistema de archivos desde el browser,
+  // pero al guardar el scheduler intentará acceder y logueará el error.
+  toast('Guardá la configuración y revisá la consola del servidor para verificar el acceso a la carpeta.','info');
+}
+
+async function importarCSV() {
+  if (!confirm('¿Importar datos del DB_Comex.csv?\nLos BLs existentes no se duplicarán.')) return;
+  const msgEl = document.getElementById('importMsg');
+  msgEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Importando...';
+  const res = await api('/api/importar-csv', {method:'POST'});
+  if (!res) return;
+  const d = await res.json();
+  if (res.ok) {
+    msgEl.innerHTML = `<span class="text-success"><i class="fa fa-check me-1"></i>
+      Importados ${d.importados} de ${d.total_csv} BLs</span>`;
+    toast(`Importación completa: ${d.importados} BLs`, 'success');
+  } else {
+    msgEl.innerHTML = `<span class="text-danger">${d.error}</span>`;
+  }
+}
+
+// ══════════════════════════ VALIDACIONES ═════════════════════════
+
+/**
+ * Valida CUIT argentino (11 dígitos).
+ * Verifica prefijo válido (20,23,24,27,30,33,34) y dígito verificador (módulo 11).
+ */
+function validarCUIT(cuit) {
+  const s = String(cuit).replace(/[-.\s]/g, '');
+  if (!/^\d{11}$/.test(s)) return false;
+  if (!['20','23','24','27','30','33','34'].includes(s.substring(0,2))) return false;
+  const pesos = [5,4,3,2,7,6,5,4,3,2];
+  const suma  = pesos.reduce((acc, p, i) => acc + p * Number(s[i]), 0);
+  const rem   = 11 - (suma % 11);
+  const chk   = rem === 11 ? 0 : rem === 10 ? -1 : rem;
+  return chk !== -1 && Number(s[10]) === chk;
+}
+
+/**
+ * Valida una línea de mercadería. Retorna array de strings de error.
+ */
+function valMerc(m, idx) {
+  const errs = [];
+  const n = idx + 1;
+  if (!m.embalaje)
+    errs.push(`Mercadería ${n}: embalaje requerido.`);
+  else if (MAESTROS.embalajes?.length && !MAESTROS.embalajes.find(e => e.codigo === m.embalaje))
+    errs.push(`Mercadería ${n}: embalaje "${m.embalaje}" no existe en la tabla.`);
+  if (!m.condicion || (m.condicion !== 'Buena' && m.condicion !== 'Mala'))
+    errs.push(`Mercadería ${n}: condición debe ser "Buena" o "Mala".`);
+  const c = Number(m.cantidad);
+  if (!m.cantidad) errs.push(`Mercadería ${n}: cantidad requerida.`);
+  else if (isNaN(c) || c <= 0) errs.push(`Mercadería ${n}: cantidad debe ser > 0.`);
+  const p = Number(m.peso);
+  if (!m.peso) errs.push(`Mercadería ${n}: peso requerido.`);
+  else if (isNaN(p) || p <= 0) errs.push(`Mercadería ${n}: peso debe ser > 0.`);
+  return errs;
+}
+
+/**
+ * Valida un contenedor. Retorna array de strings de error.
+ */
+function valCont(c, idx) {
+  const errs = [];
+  const n = idx + 1;
+  if (!c.numero)   errs.push(`Contenedor ${n}: número requerido.`);
+  if (!c.longitud) errs.push(`Contenedor ${n}: longitud requerida.`);
+  else if (c.longitud !== '20' && c.longitud !== '40')
+    errs.push(`Contenedor ${n}: longitud debe ser 20 o 40.`);
+  if (!c.tipo) errs.push(`Contenedor ${n}: tipo requerido.`);
+  else if (!['House','Pier','Correo'].includes(c.tipo))
+    errs.push(`Contenedor ${n}: tipo debe ser House, Pier o Correo.`);
+  return errs;
+}
+
+/**
+ * Valida el payload completo de un BL (comex/admin).
+ * Retorna { errors: [...], warnings: [...] }
+ */
+function validar(payload) {
+  const errors   = [];
+  const warnings = [];
+
+  // ── Datos de cabecera ────────────────────────────────────────
+  if (!payload.numero_bl)
+    errors.push('NroBL es obligatorio.');
+  else if (/\s/.test(payload.numero_bl))
+    errors.push('NroBL no debe contener espacios.');
+  else if (payload.numero_bl.length > 21)
+    errors.push('NroBL no puede superar 21 caracteres.');
+
+  if (!payload.tlat)
+    errors.push('TLAT es obligatorio.');
+
+  if (!payload.cuit)
+    errors.push('CUIT es obligatorio.');
+  else if (!validarCUIT(payload.cuit))
+    errors.push(`CUIT "${payload.cuit}" inválido — verifique los 11 dígitos y el prefijo (20,23,24,27,30,33,34).`);
+
+  if (!payload.pais)
+    errors.push('País de origen es obligatorio.');
+
+  if (!payload.manifiesto)
+    errors.push('Número de manifiesto es obligatorio.');
+
+  if (!payload.fecha) {
+    warnings.push('Fecha de ingreso no completada (la completa el depósito al recibir la mercadería).');
+  } else {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const fBL = new Date(payload.fecha + 'T00:00:00');
+    if (fBL > hoy) errors.push('La fecha de ingreso no puede ser futura.');
+  }
+
+  // ── IMO / Impedimento ────────────────────────────────────────
+  if (payload.cond_imo && !payload.num_imo)
+    errors.push('Número IMO requerido cuando se marca Condición IMO.');
+  if (payload.impedimento) {
+    if (!payload.tipo_impedimento) errors.push('Tipo de impedimento requerido.');
+    if (!payload.desc_impedimento) errors.push('Descripción del impedimento requerida.');
+  }
+
+  // ── Mercaderías ──────────────────────────────────────────────
+  const mercs = payload.mercaderias || [];
+  const conts = payload.contenedores || [];
+
+  if (mercs.length === 0) {
+    errors.push('Se requiere al menos una línea de mercadería.');
+    // marcar el aviso visual en la pestaña
+    document.getElementById('mercEmpty')?.classList.remove('d-none');
+  } else {
+    document.getElementById('mercEmpty')?.classList.add('d-none');
+    mercs.forEach((m, i) => valMerc(m, i).forEach(e => errors.push(e)));
+
+    const tiene05 = mercs.some(m => String(m.embalaje) === '05');
+    if (tiene05 && conts.length === 0)
+      errors.push('Embalaje CONTENEDOR (05): debe registrar al menos un contenedor en la pestaña Contenedores.');
+    if (!tiene05 && conts.length > 0)
+      errors.push('Hay contenedores registrados pero ninguna línea de mercadería tiene embalaje CONTENEDOR (05).');
+
+    conts.forEach((c, i) => valCont(c, i).forEach(e => errors.push(e)));
+  }
+
+  // ── Estado avanzado requiere fecha y ubicación ───────────────
+  const estadosConFecha = ['INGRESADO','PARCIAL','NACIONALIZADO'];
+  if (estadosConFecha.includes(payload.estado)) {
+    if (!payload.fecha)
+      errors.push(`Estado ${payload.estado} requiere fecha de ingreso.`);
+    if (!payload.ubicacion)
+      errors.push(`Estado ${payload.estado} requiere ubicación en depósito.`);
+  } else {
+    if (!payload.ubicacion)
+      warnings.push('Sin ubicación → el BL se exportará sin ubicación a ARCA.');
+  }
+
+  return { errors, warnings };
+}
+
+/**
+ * Muestra errores y advertencias en el área de validación del modal.
+ */
+function mostrarErrores(errors, warnings) {
+  const errWrap  = document.getElementById('valErrors');
+  const warnWrap = document.getElementById('valWarnings');
+  const errList  = document.getElementById('valErrorsList');
+  const warnList = document.getElementById('valWarningsList');
+  if (errors.length) {
+    errList.innerHTML = '<strong>Errores que impiden guardar:</strong><ul class="mb-0 ps-3 mt-1">'
+      + errors.map(e => `<li>${e}</li>`).join('') + '</ul>';
+    errWrap.classList.remove('d-none');
+  } else { errWrap.classList.add('d-none'); }
+  if (warnings.length) {
+    warnList.innerHTML = '<strong>Advertencias:</strong><ul class="mb-0 ps-3 mt-1">'
+      + warnings.map(w => `<li>${w}</li>`).join('') + '</ul>';
+    warnWrap.classList.remove('d-none');
+  } else { warnWrap.classList.add('d-none'); }
+}
+
+/**
+ * Semáforo por BL en la tabla de stock.
+ */
+function semaforo(b) {
+  const faltanClave = !b.numero_bl || !b.tlat || !b.cuit || !b.pais || !b.manifiesto;
+  if (faltanClave) return { ico: '🔴', title: 'Faltan datos identificatorios obligatorios' };
+  if (!b.ubicacion) return { ico: '🟡', title: 'Sin ubicación — se exportará sin ubicación' };
+  return { ico: '🟢', title: 'Datos completos' };
+}
+
+// ══════════════════════════ REPORTE PDF ══════════════════════════
+async function exportarPDF() {
+  if (!window.jspdf) { toast('Librería PDF no disponible (verificá conexión a internet)','danger'); return; }
+  const btnPDF = document.getElementById('btnNavPDF');
+  const orig = btnPDF.innerHTML;
+  btnPDF.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+  btnPDF.style.pointerEvents = 'none';
+  try {
+    const res = await api('/api/reporte');
+    if (!res || !res.ok) { toast('Error al obtener datos para el reporte','danger'); return; }
+    const data = await res.json();
+    const bls = data.bls || [], cvs = data.contenedores_vacios || [];
+    if (!bls.length) { toast('No hay BLs para incluir en el reporte','warning'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const mg = 13, cW = pageW - mg*2;
+    const cAzul=[0,48,135], cAzul2=[0,86,179], cGris=[108,117,125];
+    const cGrisC=[240,242,245], cBlanco=[255,255,255], cTexto=[30,30,30];
+
+    function n(v) {
+      if (v==null) return '';
+      return String(v)
+        .replace(/[áàâä]/g,'a').replace(/[éèêë]/g,'e').replace(/[íìîï]/g,'i')
+        .replace(/[óòôö]/g,'o').replace(/[úùûü]/g,'u')
+        .replace(/[ÁÀÂÄ]/g,'A').replace(/[ÉÈÊË]/g,'E').replace(/[ÍÌÎÏ]/g,'I')
+        .replace(/[ÓÒÔÖ]/g,'O').replace(/[ÚÙÛÜ]/g,'U')
+        .replace(/ñ/g,'n').replace(/Ñ/g,'N').replace(/[–—]/g,'-');
+    }
+    function fAR(iso) { if(!iso)return'-'; const p=iso.split('-'); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso; }
+
+    const now = new Date();
+    const fechaRep = now.toLocaleDateString('es-AR')+' '+now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+
+    function encabezado() {
+      doc.setFillColor(...cAzul); doc.rect(0,0,pageW,16,'F');
+      doc.setTextColor(...cBlanco); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      doc.text(n('ESTADO DE LOS DESPACHOS EN DEPOSITO FISCAL'), mg, 10);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      doc.text('Generado: '+fechaRep, pageW-mg, 10, {align:'right'});
+      doc.setTextColor(...cTexto);
+    }
+    function pie(pag, total) {
+      doc.setDrawColor(180,180,180); doc.line(mg,pageH-9,pageW-mg,pageH-9);
+      doc.setFontSize(6.5); doc.setTextColor(...cGris); doc.setFont('helvetica','normal');
+      doc.text(n('Gestión Stock Fiscal | GS - Comercio Exterior'), mg, pageH-5);
+      doc.text(`Pag. ${pag} / ${total}`, pageW-mg, pageH-5, {align:'right'});
+      doc.setTextColor(...cTexto);
+    }
+
+    encabezado();
+    let y = 20;
+    const totalMercs = bls.reduce((a,b)=>a+(b.mercaderias||[]).length,0);
+    const totalConts  = bls.reduce((a,b)=>a+(b.contenedores||[]).length,0);
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...cGris);
+    doc.text(n(`Resumen: ${bls.length} BL(s) | ${totalMercs} linea(s) mercaderia | ${totalConts} contenedor(es) | ${cvs.length} vacio(s)`), mg, y);
+    doc.setTextColor(...cTexto); y += 6;
+
+    for (let bi=0; bi<bls.length; bi++) {
+      const bl=bls[bi], msBL=bl.mercaderias||[], csBL=bl.contenedores||[];
+      const pnom = n(MAESTROS.paises?.find(p=>p.codigo==bl.pais)?.nombre||bl.pais);
+      const anom = n(MAESTROS.aduanas?.find(a=>a.codigo==bl.aduana)?.nombre||bl.aduana);
+      if (y > pageH-50) { doc.addPage(); encabezado(); y=20; }
+
+      // Banda título BL
+      doc.setFillColor(...cAzul); doc.rect(mg,y,cW,7,'F');
+      doc.setTextColor(...cBlanco); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+      doc.text(n(`BL: ${bl.numero_bl}${bl.id_comex?' | ID Comex: '+bl.id_comex:''}`), mg+3, y+5);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+      doc.text(n(bl.estado), pageW-mg-3, y+5, {align:'right'});
+      doc.setTextColor(...cTexto); y+=7;
+
+      const condiciones = [...new Set(msBL.map(m=>m.condicion||'Buena'))].sort().join(' + ')||'—';
+      const rows4 = [
+        [n('Aduana:'),     anom,                               n('TLAT:'),      n(bl.tlat)],
+        [n('CUIT:'),       n(bl.cuit),                         n('Pais:'),      pnom],
+        [n('Manifiesto:'), n(bl.manifiesto),                   n('Fecha/Hora:'), n(fAR(bl.fecha)+(bl.hora?' '+bl.hora:''))],
+        [n('Condiciones:'),n(condiciones),                     n('Ubicacion:'), n(bl.ubicacion)]
+      ];
+      const fH=4.5, boxH=rows4.length*fH+3;
+      doc.setFillColor(...cGrisC); doc.rect(mg,y,cW,boxH,'F');
+      const c1=mg+3,c2=mg+cW*.18,c3=mg+cW*.51,c4=mg+cW*.67;
+      rows4.forEach((r,ri)=>{
+        const ry=y+3+(ri*fH);
+        doc.setFont('helvetica','bold');   doc.setFontSize(7); doc.text(r[0],c1,ry);
+        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.text(r[1],c2,ry);
+        doc.setFont('helvetica','bold');                       doc.text(r[2],c3,ry);
+        doc.setFont('helvetica','normal');                     doc.text(r[3],c4,ry);
+      });
+      y+=boxH;
+
+      const extras=[];
+      if(bl.cond_imo)    extras.push(n(`IMO: Si | Nro: ${bl.num_imo||''}`));
+      if(bl.impedimento) extras.push(n(`Impedimento: ${bl.tipo_impedimento||''} - ${bl.desc_impedimento||''}`));
+      if(bl.observaciones) extras.push(n(`Obs: ${bl.observaciones}`));
+      if(extras.length){
+        const xH=extras.length*4+3;
+        doc.setFillColor(255,253,230); doc.rect(mg,y,cW,xH,'F');
+        doc.setFontSize(7); doc.setFont('helvetica','italic'); doc.setTextColor(100,80,0);
+        extras.forEach((e,ei)=>doc.text(e,mg+3,y+3+(ei*4)));
+        doc.setTextColor(...cTexto); doc.setFont('helvetica','normal'); y+=xH;
+      }
+      y+=2;
+
+      if(msBL.length){
+        if(y>pageH-30){doc.addPage();encabezado();y=20;}
+        doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...cAzul2);
+        doc.text(n(`MERCADERIAS (${msBL.length} linea(s))`),mg,y+4);
+        doc.setTextColor(...cTexto);y+=5;
+        doc.autoTable({
+          startY:y,margin:{left:mg,right:mg},tableWidth:cW,
+          headStyles:{fillColor:cAzul2,textColor:cBlanco,fontSize:6.5,fontStyle:'bold',cellPadding:1.5},
+          bodyStyles:{fontSize:6.5,textColor:cTexto,cellPadding:1.5},
+          alternateRowStyles:{fillColor:cGrisC},
+          columnStyles:{0:{cellWidth:30},1:{cellWidth:14,halign:'center'},2:{cellWidth:14,halign:'center'},
+                        3:{cellWidth:16,halign:'right'},4:{cellWidth:20},5:{cellWidth:12,halign:'center'},
+                        6:{cellWidth:20},7:{cellWidth:12,halign:'center'},8:{cellWidth:'auto'}},
+          head:[[n('Tipo Embalaje'),n('Cond.'),n('Cant.'),n('Peso(kg)'),
+                 n('Nro OC'),n('Pos.OC'),n('Nro EE'),n('Pos.EE'),n('Despacho')]],
+          body:msBL.map(m=>{
+            const enomb=n(MAESTROS.embalajes?.find(e=>e.codigo===m.embalaje)?.nombre||'');
+            return[n(m.embalaje+' '+enomb),n(m.condicion),n(m.cantidad),n(m.peso),
+                   n(m.oc),n(m.pos_oc),n(m.ee),n(m.pos_ee),n(m.despacho)];
+          }),
+          didDrawPage:()=>encabezado(),theme:'plain'
+        });
+        y=doc.lastAutoTable.finalY+3;
+      }
+
+      if(csBL.length){
+        if(y>pageH-30){doc.addPage();encabezado();y=20;}
+        doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...cAzul2);
+        doc.text(n(`CONTENEDORES (${csBL.length})`),mg,y+4);
+        doc.setTextColor(...cTexto);y+=5;
+        doc.autoTable({
+          startY:y,margin:{left:mg,right:mg},tableWidth:cW,
+          headStyles:{fillColor:cAzul2,textColor:cBlanco,fontSize:6.5,fontStyle:'bold',cellPadding:1.5},
+          bodyStyles:{fontSize:6.5,textColor:cTexto,cellPadding:1.5},
+          alternateRowStyles:{fillColor:cGrisC},
+          columnStyles:{1:{cellWidth:20,halign:'center'},2:{cellWidth:20},3:{cellWidth:22,halign:'center'}},
+          head:[[n('Numero Contenedor'),n('Longitud'),n('Tipo'),n('Cant. Bultos')]],
+          body:csBL.map(c=>[n(c.numero),n(c.longitud),n(c.tipo),n(c.bultos)]),
+          didDrawPage:()=>encabezado(),theme:'plain'
+        });
+        y=doc.lastAutoTable.finalY+4;
+      }
+
+      if(bi<bls.length-1){
+        doc.setDrawColor(180,180,180);doc.setLineDashPattern([1,2],0);
+        doc.line(mg,y,pageW-mg,y);doc.setLineDashPattern([],0);y+=4;
+      }
+    }
+
+    if(cvs.length){
+      if(y>pageH-40){doc.addPage();encabezado();y=20;}
+      doc.setFillColor(...cGris);doc.rect(mg,y,cW,7,'F');
+      doc.setTextColor(...cBlanco);doc.setFont('helvetica','bold');doc.setFontSize(8.5);
+      doc.text(n(`CONTENEDORES VACIOS (${cvs.length})`),mg+3,y+5);
+      doc.setTextColor(...cTexto);y+=9;
+      doc.autoTable({
+        startY:y,margin:{left:mg,right:mg},tableWidth:cW,
+        headStyles:{fillColor:cGris,textColor:cBlanco,fontSize:6.5,fontStyle:'bold',cellPadding:1.5},
+        bodyStyles:{fontSize:6.5,textColor:cTexto,cellPadding:1.5},
+        alternateRowStyles:{fillColor:cGrisC},
+        columnStyles:{1:{cellWidth:22,halign:'center'},2:{cellWidth:28,halign:'center'},3:{cellWidth:22,halign:'center'}},
+        head:[[n('Numero Contenedor'),n('Longitud'),n('Fecha Ingreso'),n('Hora')]],
+        body:cvs.map(c=>[n(c.numero),n(c.longitud),fAR(c.fecha),n(c.hora)]),
+        didDrawPage:()=>encabezado(),theme:'plain'
+      });
+    }
+
+    const totalPags=doc.internal.getNumberOfPages();
+    for(let p=1;p<=totalPags;p++){doc.setPage(p);pie(p,totalPags);}
+    const ts=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+    doc.save(`EstadoDespachos_${ts}.pdf`);
+    toast('Reporte PDF generado ✓','success');
+  } catch(err) {
+    toast('Error al generar PDF: '+err.message,'danger');
+    console.error(err);
+  } finally {
+    btnPDF.innerHTML = orig;
+    btnPDF.style.pointerEvents = '';
+  }
+}
+
+// ══════════════════════════ LOGOUT ═══════════════════════════════
+async function logout() {
+  await api('/api/auth/logout', {method:'POST'});
+  window.location.href = '/login';
+}
+
+// ══════════════════════════ UTILS ════════════════════════════════
+function getVal(id) {
+  const el = document.getElementById(id);
+  return el ? el.value : '';
+}
+function setVal(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = val || '';
+}
+function fmtDt(dt) {
+  if (!dt) return '—';
+  const d = new Date(dt);
+  if (isNaN(d)) return dt;
+  return d.toLocaleDateString('es-AR') + ' ' +
+         d.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+}
+function fmtFecha(iso) {
+  // Convierte 'YYYY-MM-DD' a 'DD/MM/AAAA' para mostrar en pantalla
+  if (!iso) return '—';
+  const p = String(iso).slice(0,10).split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
+}
+function togglePwd(inputId, btn) {
+  const inp  = document.getElementById(inputId);
+  const icon = btn.querySelector('i');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    icon.classList.replace('fa-eye', 'fa-eye-slash');
+  } else {
+    inp.type = 'password';
+    icon.classList.replace('fa-eye-slash', 'fa-eye');
+  }
+}
+function resetPwdField(inputId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.type = 'password';
+  const btn = inp.closest('.input-group')?.querySelector('button i');
+  if (btn) btn.classList.replace('fa-eye-slash', 'fa-eye');
+}
+function toast(msg, type='info') {
+  const t  = document.getElementById('toast');
+  const bg = {success:'bg-success',danger:'bg-danger',warning:'bg-warning text-dark',
+               info:'bg-primary'}[type] || 'bg-primary';
+  t.className = `toast align-items-center text-white border-0 ${bg}`;
+  document.getElementById('toastMsg').textContent = msg;
+  _toast.show();
+}
+
+// Auto-refresh de la lista cada 60 segundos
+setInterval(() => {
+  const activePage = document.querySelector('.page:not(.d-none)')?.id;
+  if (activePage === 'page-stock')     loadBLs();
+  if (activePage === 'page-dashboard') loadDashboard();
+}, 60000);
+</script>
+</body>
+</html>
