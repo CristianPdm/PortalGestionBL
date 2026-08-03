@@ -1692,12 +1692,20 @@ function validar(payload) {
   if (!payload.manifiesto)
     errors.push('Número de manifiesto es obligatorio.');
 
-  if (!payload.fecha) {
-    warnings.push('Fecha de ingreso no completada (la completa el depósito al recibir la mercadería).');
+  if (payload.estado === 'PRECARGA') {
+    // En PRECARGA la fecha es opcional y puede ser futura (aún no ingresó al depósito)
+    if (payload.fecha) {
+      // aceptada sin restricción de fecha futura
+    }
   } else {
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const fBL = new Date(payload.fecha + 'T00:00:00');
-    if (fBL > hoy) errors.push('La fecha de ingreso no puede ser futura.');
+    // Para cualquier otro estado la fecha es obligatoria y no puede ser futura
+    if (!payload.fecha) {
+      errors.push('Fecha de ingreso obligatoria para BLs con estado ' + payload.estado + '.');
+    } else {
+      const hoy = new Date(); hoy.setHours(0,0,0,0);
+      const fBL = new Date(payload.fecha + 'T00:00:00');
+      if (fBL > hoy) errors.push('La fecha de ingreso no puede ser futura.');
+    }
   }
 
   // ── IMO / Impedimento ────────────────────────────────────────
@@ -1770,7 +1778,11 @@ function mostrarErrores(errors, warnings) {
 function semaforo(b) {
   const faltanClave = !b.numero_bl || !b.tlat || !b.cuit || !b.pais || !b.manifiesto;
   if (faltanClave) return { ico: '🔴', title: 'Faltan datos identificatorios obligatorios' };
-  if (!b.ubicacion) return { ico: '🟡', title: 'Sin ubicación — se exportará sin ubicación' };
+  // En PRECARGA la ubicación y la fecha aún no son requeridas
+  if (b.estado !== 'PRECARGA') {
+    if (!b.ubicacion) return { ico: '🟡', title: 'Sin ubicación — se exportará sin ubicación' };
+    if (!b.fecha)     return { ico: '🟡', title: 'Sin fecha de ingreso' };
+  }
   return { ico: '🟢', title: 'Datos completos' };
 }
 

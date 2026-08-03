@@ -319,6 +319,35 @@ def api_login():
         return jsonify({'ok': True, 'rol': u['rol'], 'nombre': u['nombre']})
     return jsonify({'ok': False, 'error': 'Usuario o contraseña incorrectos'}), 401
 
+@app.route('/api/auth/cambiar-password', methods=['POST'])
+def api_cambiar_password():
+    """Permite cambiar la contraseña validando la actual. No requiere sesión activa."""
+    d            = request.get_json(force=True)
+    username     = d.get('username', '').strip()
+    pwd_actual   = d.get('password_actual', '')
+    pwd_nueva    = d.get('password_nueva', '')
+    pwd_confirm  = d.get('password_confirm', '')
+
+    if not all([username, pwd_actual, pwd_nueva, pwd_confirm]):
+        return jsonify({'ok': False, 'error': 'Todos los campos son obligatorios'}), 400
+    if len(pwd_nueva) < 6:
+        return jsonify({'ok': False, 'error': 'La nueva contraseña debe tener al menos 6 caracteres'}), 400
+    if pwd_nueva != pwd_confirm:
+        return jsonify({'ok': False, 'error': 'Las contraseñas nuevas no coinciden'}), 400
+
+    db = get_db()
+    u = db.execute("SELECT * FROM usuarios WHERE username=? AND activo=1",
+                   (username,)).fetchone()
+    if not u or not check_password_hash(u['password_hash'], pwd_actual):
+        return jsonify({'ok': False, 'error': 'Usuario o contraseña actual incorrectos'}), 401
+    if check_password_hash(u['password_hash'], pwd_nueva):
+        return jsonify({'ok': False, 'error': 'La nueva contraseña debe ser distinta a la actual'}), 400
+
+    db.execute("UPDATE usuarios SET password_hash=? WHERE id=?",
+               (generate_password_hash(pwd_nueva), u['id']))
+    db.commit()
+    return jsonify({'ok': True})
+
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
     session.clear(); return jsonify({'ok': True})
@@ -932,7 +961,8 @@ def _generar_excel(con, ruta):
         falta_clave = not (b['numero_bl'] and b['tlat'] and b['cuit'] and b['pais'] and b['manifiesto'])
         if falta_clave or nm == 0:
             resultado = 'Error'
-        elif not b['ubicacion']:
+        elif b['estado'] != 'PRECARGA' and (not b['ubicacion'] or not b['fecha']):
+            # Fuera de PRECARGA: ubicación y fecha son obligatorias
             resultado = 'Advertencia'
         else:
             resultado = 'Completo'
